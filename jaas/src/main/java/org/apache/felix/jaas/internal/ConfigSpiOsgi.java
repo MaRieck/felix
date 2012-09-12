@@ -19,9 +19,18 @@
 
 package org.apache.felix.jaas.internal;
 
-import org.apache.felix.scr.annotations.*;
-import org.apache.sling.auth.jaas.LoginModuleFactory;
-import org.apache.sling.auth.jaas.ProxyLoginModule;
+import org.apache.felix.jaas.LoginModuleFactory;
+import org.apache.felix.jaas.ProxyLoginModule;
+import org.apache.felix.scr.annotations.Activate;
+import org.apache.felix.scr.annotations.Component;
+import org.apache.felix.scr.annotations.ConfigurationPolicy;
+import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Property;
+import org.apache.felix.scr.annotations.Reference;
+import org.apache.felix.scr.annotations.ReferenceCardinality;
+import org.apache.felix.scr.annotations.ReferencePolicy;
+import org.apache.felix.scr.annotations.References;
+import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
@@ -33,7 +42,13 @@ import javax.security.auth.login.ConfigurationSpi;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * User: chetanm

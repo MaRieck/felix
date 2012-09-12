@@ -19,7 +19,7 @@
 
 package org.apache.felix.jaas.internal;
 
-import org.apache.sling.auth.jaas.LoginModuleFactory;
+import org.apache.felix.jaas.LoginModuleFactory;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;

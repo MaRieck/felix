@@ -19,7 +19,7 @@
 
 package org.apache.felix.jaas.internal;
 
-import org.apache.sling.auth.jaas.LoginModuleFactory;
+import org.apache.felix.jaas.LoginModuleFactory;
 
 import java.util.Map;
 
@@ -30,7 +30,7 @@ import static javax.security.auth.login.AppConfigurationEntry.LoginModuleControl
  * Date: 7/9/12
  * Time: 8:40 PM
  */
-public interface LoginModuleProvider extends LoginModuleFactory{
+public interface LoginModuleProvider extends LoginModuleFactory {
 
     Map<String,?> options();
 

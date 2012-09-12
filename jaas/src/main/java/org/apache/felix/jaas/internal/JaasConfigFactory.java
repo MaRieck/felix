@@ -19,15 +19,22 @@
 
 package org.apache.felix.jaas.internal;
 
-import org.apache.felix.scr.annotations.*;
-import org.apache.sling.auth.jaas.LoginModuleFactory;
+import org.apache.felix.jaas.LoginModuleFactory;
+import org.apache.felix.scr.annotations.Activate;
+import org.apache.felix.scr.annotations.Component;
+import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Property;
+import org.apache.felix.scr.annotations.PropertyOption;
+import org.apache.felix.scr.annotations.PropertyUnbounded;
+import org.apache.felix.scr.annotations.Reference;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 @Component(
