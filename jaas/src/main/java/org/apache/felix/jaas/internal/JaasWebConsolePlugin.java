@@ -31,7 +31,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Dictionary;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -155,7 +154,7 @@ public class JaasWebConsolePlugin extends HttpServlet {
                     Object id = sr.getProperty(Constants.SERVICE_ID);
                     pw.printf("<a href=\"${pluginRoot}/../services/%s\">(%s)</a>",id,id);
                 }else if(lp instanceof ConfigLoginModuleProvider){
-                    Dictionary config = ((ConfigLoginModuleProvider) lp).getComponentConfig();
+                    Map config = lp.options();
                     Object id = config.get(Constants.SERVICE_PID);
                     pw.printf("<a href=\"${pluginRoot}/../configMgr/%s\">(Details)</a>",id);
                 }

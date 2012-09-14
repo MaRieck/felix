@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Dictionary;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -95,6 +96,7 @@ public class JaasConfigFactory implements ManagedServiceFactory{
         return "JaasConfigFactory";
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void updated(String pid, Dictionary config) throws ConfigurationException {
         String className = trimToNull(Util.toString(config.get(JAAS_CLASS_NAME), null));
@@ -110,9 +112,16 @@ public class JaasConfigFactory implements ManagedServiceFactory{
             return;
         }
 
+        //Combine the config. As the jaas.options is required for capturing config
+        //via felix webconsole. However in normal usage people would like to provide
+        //key=value pair directly in config. So merge both to provide a combined
+        //view
+        Map combinedOptions = convertToMap(config);
+        combinedOptions.putAll(options);
+
         LoginModuleProvider lmf =
-                new ConfigLoginModuleProvider(realmName,className,options,
-                        ControlFlag.from(flag).flag(),ranking,factory, config);
+                new ConfigLoginModuleProvider(realmName,className,combinedOptions,
+                        ControlFlag.from(flag).flag(),ranking,factory);
 
         ServiceRegistration reg = context.registerService(LoginModuleFactory.class.getName(), lmf, new Properties());
         registrations.put(pid,reg);
@@ -143,5 +152,17 @@ public class JaasConfigFactory implements ManagedServiceFactory{
             }
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map convertToMap(Dictionary config) {
+        Map copy = new HashMap();
+        Enumeration e  = config.keys();
+        while(e.hasMoreElements()){
+            Object key = e.nextElement();
+            Object value = config.get(key);
+            copy.put(key,value);
+        }
+        return copy;
     }
 }
