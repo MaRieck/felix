@@ -20,35 +20,39 @@
 package org.apache.felix.jaas.internal;
 
 import org.apache.felix.jaas.LoginModuleFactory;
-import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Property;
 import org.apache.felix.scr.annotations.PropertyOption;
 import org.apache.felix.scr.annotations.PropertyUnbounded;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.cm.ConfigurationException;
+import org.osgi.service.cm.ManagedServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static org.apache.felix.jaas.internal.Util.trimToNull;
 
 @Component(
         label = "%jaas.name",
         description = "%jaas.description",
-        configurationFactory = true,
         metatype = true,
-        immediate = true,
-        name = "org.apache.sling.auth.jaas.Configuration"
+        ds=false,
+        name = JaasConfigFactory.SERVICE_PID
 )
-public class JaasConfigFactory {
+public class JaasConfigFactory implements ManagedServiceFactory{
+
+    public static final String SERVICE_PID = "org.apache.felix.jaas.Configuration.factory";
 
     @Property
-    private static final String JAAS_CLASS_NAME = "jaas.classname";
+    static final String JAAS_CLASS_NAME = "jaas.classname";
 
 
     @Property(value = "required",options = {
@@ -57,54 +61,70 @@ public class JaasConfigFactory {
         @PropertyOption(name = "sufficient",value = "%jaas.flag.sufficient"),
         @PropertyOption(name = "optional",value = "%jaas.flag.optional")
     })
-    private static final String JAAS_CONTROL_FLAG = "jaas.controlFlag";
+    static final String JAAS_CONTROL_FLAG = "jaas.controlFlag";
 
     @Property(intValue = 0)
-    private static final String JAAS_RANKING = "jaas.ranking";
+    static final String JAAS_RANKING = "jaas.ranking";
 
     @Property(unbounded = PropertyUnbounded.ARRAY)
-    private static final String JAAS_OPTIONS = "jaas.options";
+    static final String JAAS_OPTIONS = "jaas.options";
 
     @Property
-    private static final String JAAS_REALM_NAME = "jaas.realmName";
+    static final String JAAS_REALM_NAME = "jaas.realmName";
 
     private Logger log = LoggerFactory.getLogger(getClass());
 
-    @Reference
-    private LoginModuleCreator factory;
+    private final LoginModuleCreator factory;
 
-    private ServiceRegistration reg;
+    private final BundleContext context;
 
-    @Activate
-    private void activate(BundleContext context,Map config){
-        String className = trimToNull(PropertiesUtil.toString(config.get(JAAS_CLASS_NAME),null));
-        String flag = trimToNull(PropertiesUtil.toString(config.get(JAAS_CONTROL_FLAG), "required"));
-        int ranking = PropertiesUtil.toInteger(config.get(JAAS_RANKING), 0);
+    private final Map<String,ServiceRegistration> registrations = new ConcurrentHashMap<String, ServiceRegistration>();
 
-        String[] props = PropertiesUtil.toStringArray(config.get(JAAS_OPTIONS), new String[0]);
+    public JaasConfigFactory(BundleContext context,LoginModuleCreator factory) {
+        this.context = context;
+        this.factory = factory;
+
+        Properties props = new Properties();
+        props.setProperty(Constants.SERVICE_VENDOR, "Apache Software Foundation");
+        props.setProperty(Constants.SERVICE_PID, SERVICE_PID);
+        context.registerService(ManagedServiceFactory.class.getName(),this,props);
+    }
+
+    @Override
+    public String getName() {
+        return "JaasConfigFactory";
+    }
+
+    @Override
+    public void updated(String pid, Dictionary config) throws ConfigurationException {
+        String className = trimToNull(Util.toString(config.get(JAAS_CLASS_NAME), null));
+        String flag = trimToNull(Util.toString(config.get(JAAS_CONTROL_FLAG), "required"));
+        int ranking = Util.toInteger(config.get(JAAS_RANKING), 0);
+
+        String[] props = Util.toStringArray(config.get(JAAS_OPTIONS), new String[0]);
         Map options = toMap(props);
-        String realmName = trimToNull(PropertiesUtil.toString(config.get(JAAS_REALM_NAME),null));
+        String realmName = trimToNull(Util.toString(config.get(JAAS_REALM_NAME),null));
 
         if(className == null){
-           log.warn("Class name for the LoginModule is required. Configuration would be ignored"+config);
-           return;
+            log.warn("Class name for the LoginModule is required. Configuration would be ignored"+config);
+            return;
         }
 
         LoginModuleProvider lmf =
                 new ConfigLoginModuleProvider(realmName,className,options,
                         ControlFlag.from(flag).flag(),ranking,factory, config);
 
-        reg = context.registerService(LoginModuleFactory.class.getName(), lmf, new Properties());
-
+        ServiceRegistration reg = context.registerService(LoginModuleFactory.class.getName(), lmf, new Properties());
+        registrations.put(pid,reg);
     }
 
-    @Deactivate
-    private void deactivate(){
+    @Override
+    public void deleted(String pid) {
+        ServiceRegistration reg = registrations.remove(pid);
         if(reg != null){
             reg.unregister();
         }
     }
-
 
     //~----------------------------------- Utility Methods
 
@@ -124,20 +144,4 @@ public class JaasConfigFactory {
         }
         return result;
     }
-
-    //Instead of adding dependency on commons StringUtil we copy the used method below
-
-    private static String trimToNull(String str) {
-        String ts = trim(str);
-        return isEmpty(ts) ? null : ts;
-    }
-
-    private static String trim(String str) {
-        return str == null ? null : str.trim();
-    }
-
-    private static boolean isEmpty(String str) {
-        return str == null || str.length() == 0;
-    }
-
 }

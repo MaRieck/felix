@@ -46,11 +46,25 @@ enum ControlFlag {
     }
 
     public static ControlFlag from(String val){
+        val = Util.trimToNull(val);
         if(val == null){
             return REQUIRED;
         }
 
-        val = val.trim().toUpperCase();
+        val = val.toUpperCase();
         return ControlFlag.valueOf(val);
+    }
+
+    public static String toString(LoginModuleControlFlag flag){
+        if(flag == LoginModuleControlFlag.REQUIRED){
+            return "REQUIRED";
+        } else if(flag == LoginModuleControlFlag.REQUISITE){
+            return "REQUISITE";
+        } else if(flag == LoginModuleControlFlag.SUFFICIENT){
+            return "SUFFICIENT";
+        } else if(flag == LoginModuleControlFlag.OPTIONAL){
+            return "OPTIONAL";
+        }
+        throw new IllegalArgumentException("Unknown flag "+flag);
     }
 }

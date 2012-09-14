@@ -20,7 +20,6 @@
 package org.apache.felix.jaas.internal;
 
 import org.apache.felix.jaas.LoginModuleFactory;
-import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;
 
@@ -30,12 +29,7 @@ import java.util.Map;
 
 import static javax.security.auth.login.AppConfigurationEntry.LoginModuleControlFlag;
 
-/**
- * User: chetanm
- * Date: 7/9/12
- * Time: 11:38 PM
- */
-class OsgiLoginModuleProvider implements LoginModuleProvider {
+final class OsgiLoginModuleProvider implements LoginModuleProvider {
     private final LoginModuleFactory delegate;
     private final int ranking;
     private final LoginModuleControlFlag flag;
@@ -44,7 +38,7 @@ class OsgiLoginModuleProvider implements LoginModuleProvider {
 
     public OsgiLoginModuleProvider(ServiceReference sr, LoginModuleFactory delegate){
         this.delegate = delegate;
-        this.ranking = PropertiesUtil.toInteger(sr.getProperty(Constants.SERVICE_RANKING),0);
+        this.ranking = Util.toInteger(sr.getProperty(Constants.SERVICE_RANKING),0);
         this.flag = ControlFlag.from((String) sr.getProperty(LoginModuleFactory.JAAS_CONTROL_FLAG)).flag();
         this.realmName = (String) sr.getProperty(LoginModuleFactory.JAAS_REALM_NAME);
         this.serviceReference = sr;

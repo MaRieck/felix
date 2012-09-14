@@ -19,10 +19,35 @@
 
 package org.apache.felix.jaas.internal;
 
-/**
- * User: chetanm
- * Date: 12/9/12
- * Time: 2:02 PM
- */
-public class Activator {
+import org.osgi.framework.BundleActivator;
+import org.osgi.framework.BundleContext;
+
+public class Activator implements BundleActivator{
+
+    private BundleLoginModuleCreator loginModuleCreator;
+    private JaasConfigFactory jaasConfigFactory;
+    private ConfigSpiOsgi configSpi;
+    private JaasWebConsolePlugin webConsolePlugin;
+
+    @Override
+    public void start(BundleContext context) throws Exception {
+        loginModuleCreator = new BundleLoginModuleCreator(context);
+        jaasConfigFactory = new JaasConfigFactory(context,loginModuleCreator);
+        configSpi = new ConfigSpiOsgi(context);
+        webConsolePlugin = new JaasWebConsolePlugin(context,configSpi,loginModuleCreator);
+
+        loginModuleCreator.open();
+        configSpi.open();
+    }
+
+    @Override
+    public void stop(BundleContext context) throws Exception {
+        if(loginModuleCreator != null){
+            loginModuleCreator.close();
+        }
+
+        if(configSpi != null){
+            configSpi.close();
+        }
+    }
 }

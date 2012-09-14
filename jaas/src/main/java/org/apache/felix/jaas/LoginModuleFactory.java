@@ -28,6 +28,7 @@ import javax.security.auth.spi.LoginModule;
  */
 public interface LoginModuleFactory {
 
+
     String JAAS_CONTROL_FLAG = "jaas.controlFlag";
     String JAAS_REALM_NAME = "jaas.realmName";
 

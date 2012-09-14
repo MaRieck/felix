@@ -21,26 +21,28 @@ package org.apache.felix.jaas.internal;
 
 import javax.security.auth.spi.LoginModule;
 import java.util.Collections;
+import java.util.Dictionary;
 import java.util.Map;
 
 import static javax.security.auth.login.AppConfigurationEntry.LoginModuleControlFlag;
 
 
-class ConfigLoginModuleProvider implements LoginModuleProvider {
+final class ConfigLoginModuleProvider implements LoginModuleProvider {
     private final Map options;
     private final LoginModuleControlFlag controlFlag;
     private final int ranking;
     private final String realmName;
     private final String className;
     private final LoginModuleCreator moduleCreator;
-    private final Map componentConfig;
+    private final Dictionary componentConfig;
 
-    ConfigLoginModuleProvider(String realmName, String className,
+    ConfigLoginModuleProvider(String realmName,
+                              String className,
                               Map options,
                               LoginModuleControlFlag controlFlag,
                               int order,
                               LoginModuleCreator moduleCreator,
-                              Map componentConfig) {
+                              Dictionary componentConfig) {
         this.componentConfig = componentConfig;
         this.options = Collections.unmodifiableMap(options);
         this.controlFlag = controlFlag;
@@ -74,7 +76,7 @@ class ConfigLoginModuleProvider implements LoginModuleProvider {
         return moduleCreator.newInstance(className);
     }
 
-    public Map getComponentConfig() {
+    public Dictionary getComponentConfig() {
         return componentConfig;
     }
 

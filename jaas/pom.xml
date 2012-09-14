@@ -74,9 +74,6 @@
                         <Export-Package>
                             org.apache.felix.jaas
                         </Export-Package>
-                        <Embed-Dependency>
-                            org.apache.sling.commons.osgi
-                        </Embed-Dependency>
                         <_removeheaders>
                             Embed-Dependency,Private-Package,Include-Resource
                         </_removeheaders>
@@ -112,11 +109,7 @@
             <artifactId>servlet-api</artifactId>
             <version>2.3</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.sling</groupId>
-            <artifactId>org.apache.sling.commons.osgi</artifactId>
-            <version>2.1.0</version>
-        </dependency>
+
 
         <!-- Logging -->
         <dependency>

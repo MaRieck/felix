@@ -21,19 +21,17 @@ package org.apache.felix.jaas.internal;
 
 import org.apache.felix.jaas.LoginModuleFactory;
 import org.apache.felix.jaas.ProxyLoginModule;
-import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.ConfigurationPolicy;
-import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.ReferenceCardinality;
-import org.apache.felix.scr.annotations.ReferencePolicy;
-import org.apache.felix.scr.annotations.References;
-import org.apache.felix.scr.annotations.Service;
-import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;
+import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.cm.ConfigurationException;
+import org.osgi.service.cm.ManagedService;
+import org.osgi.util.tracker.ServiceTracker;
+import org.osgi.util.tracker.ServiceTrackerCustomizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,166 +41,192 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Dictionary;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * User: chetanm
- * Date: 8/9/12
- * Time: 12:05 AM
- */
 @Component(
         label = "%jaas.spi.name",
         description = "%jaas.spi.description",
-        immediate = false,
         metatype = true,
-        name = "org.apache.sling.auth.jaas.ConfigurationSpi",
+        ds=false,
+        name = "org.apache.felix.jaas.ConfigurationSpi",
         policy = ConfigurationPolicy.REQUIRE)
-@References({
-        @Reference(
-                name = "LoginModuleFactory",
-                referenceInterface = LoginModuleFactory.class,
-                cardinality = ReferenceCardinality.MANDATORY_MULTIPLE,
-                policy = ReferencePolicy.DYNAMIC)
-})
-@Service(value = ConfigurationSpi.class)
-public class ConfigSpiOsgi extends ConfigurationSpi {
+public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, ServiceTrackerCustomizer {
     /**
      * Name of the algorithm to use to fetch JAAS Config
      */
     public static final String JAAS_CONFIG_ALGO_NAME = "JavaLoginConfig";
 
-    private static final AppConfigurationEntry[] EMPTY_ARRAY = new AppConfigurationEntry[0];
-    private final Set<ServiceReference> unhandledProviders = new HashSet<ServiceReference>();
-    private final Map<ServiceReference, LoginModuleProvider> providerMap = new HashMap<ServiceReference, LoginModuleProvider>();
+    public static final String SERVICE_PID = "org.apache.felix.jaas.ConfigurationSpi";
 
-    private BundleContext context;
-    private Map<String,List<AppConfigurationHolder>> configs = Collections.emptyMap();
+    private Map<String,Realm> configs = Collections.emptyMap();
 
     private Logger log = LoggerFactory.getLogger(getClass());
 
     @Property
     private static final String JAAS_DEFAULT_REALM_NAME = "jaas.defaultRealmName";
-
     private String defaultRealmName;
 
-
-    private static final String DEFAULT_CONFIG_PROVIDER_NAME = "JavaLoginConfigOsgi";
+    private static final String DEFAULT_CONFIG_PROVIDER_NAME = "FelixJaasProvider";
     @Property(value = DEFAULT_CONFIG_PROVIDER_NAME)
     private static final String JAAS_CONFIG_PROVIDER_NAME = "jaas.configProviderName";
 
+    private final Map<ServiceReference,LoginModuleProvider> providerMap =
+            new ConcurrentHashMap<ServiceReference, LoginModuleProvider>();
+
     private String jaasConfigProviderName;
+
+    private final Object lock = new Object();
+
+    private final BundleContext context;
+
+    private final ServiceTracker tracker;
+
+    private ServiceRegistration spiReg;
+
+    public ConfigSpiOsgi(BundleContext context) {
+        this.context = context;
+        this.tracker = new ServiceTracker(context,LoginModuleFactory.class.getName(),this);
+
+        Properties props = new Properties();
+        props.setProperty(Constants.SERVICE_VENDOR, "Apache Software Foundation");
+        props.setProperty(Constants.SERVICE_PID, SERVICE_PID);
+
+        this.context.registerService(ManagedService.class.getName(),this,props);
+    }
 
     @Override
     protected AppConfigurationEntry[] engineGetAppConfigurationEntry(String name) {
-        List<AppConfigurationHolder> configHolders = configs.get(name);
-        if(configHolders == null){
+        Realm realm = configs.get(name);
+        if(realm == null){
             log.warn("No JAAS module configured for realm {}",name);
-            return EMPTY_ARRAY;
+            return null;
         }
 
-        AppConfigurationEntry[] entries = new AppConfigurationEntry[configHolders.size()];
-        for(int i = 0; i < configHolders.size(); i++){
-            entries[i] = configHolders.get(i).getEntry();
-        }
-        return entries;
+        return realm.engineGetAppConfigurationEntry();
+    }
+
+    Map<String,Realm> getAllConfiguration(){
+        return configs;
     }
 
     private void recreateConfigs(){
-        Map<String,List<AppConfigurationHolder>> realmToConfigMap = new HashMap<String,List<AppConfigurationHolder>>();
-        for(LoginModuleProvider lmfExt : providerMap.values()){
-            String realmName = lmfExt.realmName();
+        Map<String,Realm> realmToConfigMap = new HashMap<String,Realm>();
+        for(LoginModuleProvider lmp : providerMap.values()){
+            String realmName = lmp.realmName();
             if(realmName == null){
                 realmName = defaultRealmName;
             }
 
-            List<AppConfigurationHolder> configList = realmToConfigMap.get(realmName);
-            if(configList == null){
-                configList = new ArrayList<AppConfigurationHolder>();
-                realmToConfigMap.put(realmName,configList);
+            Realm realm = realmToConfigMap.get(realmName);
+            if(realm == null){
+                realm = new Realm(realmName);
+                realmToConfigMap.put(realmName,realm);
             }
 
-            configList.add(new AppConfigurationHolder(lmfExt));
+            realm.add(new AppConfigurationHolder(lmp));
         }
 
-        for(List<AppConfigurationHolder> configHolders : realmToConfigMap.values()){
-            Collections.sort(configHolders);
+        for(Realm realm : realmToConfigMap.values()){
+            realm.afterPropertiesSet();
         }
 
-        this.configs = realmToConfigMap;
-    }
+        //We also register the Spi with OSGI SR if any configuration is available
+        //This would allow any client component to determine when it should start
+        //and use the config
+        if(!realmToConfigMap.isEmpty() && spiReg == null){
+            Properties props = new Properties();
+            props.setProperty("providerName", "felix");
 
-    public Map<String,List<AppConfigurationHolder>> getAllConfiguration(){
-        return Collections.unmodifiableMap(configs);
-    }
-
-    // ---------- SCR integration ----------------------------------------------
-
-    @Activate
-    private void activate(BundleContext context, Map config) {
-        this.defaultRealmName = PropertiesUtil.toString(config.get(JAAS_DEFAULT_REALM_NAME),null);
-        if(defaultRealmName == null){
-            throw new IllegalArgumentException("Default JAAS realm name must be specified");
-        }
-
-        this.jaasConfigProviderName =  PropertiesUtil.toString(config.get(JAAS_CONFIG_PROVIDER_NAME), DEFAULT_CONFIG_PROVIDER_NAME);
-
-        this.context = context;
-        synchronized (unhandledProviders) {
-            for (ServiceReference ref : unhandledProviders) {
-                LoginModuleFactory pvd = (LoginModuleFactory) context.getService(ref);
-                registerFactory(ref, pvd);
+            synchronized (lock){
+                spiReg = context.registerService(ConfigurationSpi.class.getName(), this, props);
             }
-            unhandledProviders.clear();
-            recreateConfigs();
         }
 
-        registerProvider();
-        JaasWebConsolePlugin.setConfigSpi(this);
+        synchronized (lock){
+            this.configs = Collections.unmodifiableMap(realmToConfigMap);
+        }
     }
 
-    @Deactivate
-    private void deactivate() {
-        this.context = null;
-        JaasWebConsolePlugin.setConfigSpi(null);
+
+    //--------------LifeCycle methods -------------------------------------
+
+    void open(){
+        this.tracker.open();
+    }
+
+    void close() {
+        this.tracker.close();
         deregisterProvider();
 
-        synchronized (unhandledProviders) {
-            unhandledProviders.clear();
+        synchronized (lock) {
+            providerMap.clear();
             configs.clear();
         }
     }
 
-    @SuppressWarnings("UnusedDeclaration")
-    private void bindLoginModuleFactory(ServiceReference ref) {
-        synchronized (unhandledProviders) {
-            if (context == null) {
-                unhandledProviders.add(ref);
-            } else {
-                LoginModuleFactory lmf = (LoginModuleFactory) context.getService(ref);
-                registerFactory(ref, lmf);
-                recreateConfigs();
-            }
+    // --------------Config handling ----------------------------------------
+
+    @Override
+    public void updated(Dictionary properties) throws ConfigurationException {
+        String newDefaultRealmName = Util.toString(properties.get(JAAS_DEFAULT_REALM_NAME),null);
+        if(newDefaultRealmName == null){
+            throw new IllegalArgumentException("Default JAAS realm name must be specified");
         }
+
+        if(!newDefaultRealmName.equals(defaultRealmName)){
+            defaultRealmName = newDefaultRealmName;
+            recreateConfigs();
+        }
+
+        this.jaasConfigProviderName =  Util.toString(properties.get(JAAS_CONFIG_PROVIDER_NAME),
+                DEFAULT_CONFIG_PROVIDER_NAME);
+
+        deregisterProvider();
+        registerProvider();
     }
 
-    @SuppressWarnings("UnusedDeclaration")
-    private void unbindLoginModuleFactory(ServiceReference ref) {
-        synchronized (unhandledProviders) {
-            if (context == null) {
-                unhandledProviders.remove(ref);
-            } else {
-                deregisterFactory(ref);
-                recreateConfigs();
-            }
-        }
+
+    // --------------JAAS/JCA/Security ----------------------------------------
+
+    private void registerProvider(){
+        Security.addProvider(new OSGiProvider());
+        log.info("Registered provider {} for managing JAAS config with type {}",
+                jaasConfigProviderName,JAAS_CONFIG_ALGO_NAME);
     }
 
-    // ---------- JAAS/JCA/Security ----------------------------------------------
+    private void deregisterProvider(){
+        Security.removeProvider(jaasConfigProviderName);
+        log.info("Removed provider {} type {} from Security providers list",
+                jaasConfigProviderName,JAAS_CONFIG_ALGO_NAME);
+    }
+
+    // ---------- ServiceTracker ----------------------------------------------
+
+    @Override
+    public Object addingService(ServiceReference reference) {
+        LoginModuleFactory lmf = (LoginModuleFactory) context.getService(reference);
+        registerFactory(reference,lmf);
+        return lmf;
+    }
+
+    @Override
+    public void modifiedService(ServiceReference reference, Object service) {
+        recreateConfigs();
+    }
+
+    @Override
+    public void removedService(ServiceReference reference, Object service) {
+        deregisterFactory(reference);
+        recreateConfigs();
+        context.ungetService(reference);
+    }
 
     private void deregisterFactory(ServiceReference ref) {
         LoginModuleProvider lmp = providerMap.remove(ref);
@@ -212,7 +236,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
     }
 
     private void registerFactory(ServiceReference ref, LoginModuleFactory lmf) {
-        LoginModuleProvider lmfExt = null;
+        LoginModuleProvider lmfExt;
         if(lmf instanceof LoginModuleProvider){
             lmfExt = (LoginModuleProvider) lmf;
         }else{
@@ -220,16 +244,6 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
         }
         log.info("Registering LoginModuleFactory {}",lmf);
         providerMap.put(ref, lmfExt);
-    }
-
-    private void registerProvider(){
-        Security.addProvider(new OSGiProvider());
-        log.info("Registered provider {} for managing JAAS config with type {}",jaasConfigProviderName,JAAS_CONFIG_ALGO_NAME);
-    }
-
-    private void deregisterProvider(){
-        Security.removeProvider(jaasConfigProviderName);
-        log.info("Removed provider {} type {} from Security providers list", jaasConfigProviderName,JAAS_CONFIG_ALGO_NAME);
     }
 
     private class OSGiProvider extends Provider {
@@ -267,6 +281,49 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
             return ConfigSpiOsgi.this;
         }
     }
+
+    static final class Realm {
+        private final String realmName;
+        private AppConfigurationEntry[] configArray;
+        private List<AppConfigurationHolder> configs = new ArrayList<AppConfigurationHolder>();
+
+        Realm(String realmName) {
+            this.realmName = realmName;
+        }
+
+        public void add(AppConfigurationHolder config){
+            configs.add(config);
+        }
+
+        public void afterPropertiesSet(){
+            Collections.sort(configs);
+            configArray = new AppConfigurationEntry[configs.size()];
+            for(int i = 0; i < configs.size(); i++){
+                configArray[i] = configs.get(i).getEntry();
+            }
+            configs = Collections.unmodifiableList(configs);
+        }
+
+        public String getRealmName() {
+            return realmName;
+        }
+
+        public List<AppConfigurationHolder> getConfigs() {
+            return configs;
+        }
+
+        public AppConfigurationEntry[] engineGetAppConfigurationEntry(){
+            return Arrays.copyOf(configArray,configArray.length);
+        }
+
+        @Override
+        public String toString() {
+            return "Realm{" +
+                    "realmName='" + realmName + '\'' +
+                    '}';
+        }
+    }
+
     static final class AppConfigurationHolder implements Comparable<AppConfigurationHolder> {
         private static final String LOGIN_MODULE_CLASS = ProxyLoginModule.class.getName();
         private final LoginModuleProvider provider;
