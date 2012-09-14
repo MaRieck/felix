@@ -54,7 +54,7 @@ final class Util {
         return isEmpty(ts) ? null : ts;
     }
 
-    public static String trim(String str) {
+    private static String trim(String str) {
         return str == null ? null : str.trim();
     }
 
@@ -110,7 +110,7 @@ final class Util {
      * Otherwise <code>null</code> is returned.
      * @param propValue the parameter to convert.
      */
-    public static Object toObject(Object propValue) {
+    private static Object toObject(Object propValue) {
         if (propValue == null) {
             return null;
         } else if (propValue.getClass().isArray()) {

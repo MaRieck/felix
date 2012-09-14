@@ -39,7 +39,7 @@ class BundleLoginModuleCreator extends BundleTracker implements LoginModuleCreat
 
     private static Logger log = LoggerFactory.getLogger(BundleLoginModuleCreator.class);
 
-    private Map<String,LoginModuleInfo> loginModuleInfo = new ConcurrentHashMap<String, LoginModuleInfo>();
+    private final Map<String,LoginModuleInfo> loginModuleInfo = new ConcurrentHashMap<String, LoginModuleInfo>();
 
 
     public BundleLoginModuleCreator(BundleContext context) {
@@ -87,7 +87,7 @@ class BundleLoginModuleCreator extends BundleTracker implements LoginModuleCreat
     @Override
     public Object addingBundle(Bundle bundle, BundleEvent event) {
         if (providesLoginModule(bundle)) {
-            registerBundle(bundle);
+           return  registerBundle(bundle);
         }
         return null;
     }

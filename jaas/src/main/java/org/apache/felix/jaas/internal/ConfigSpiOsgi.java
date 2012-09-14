@@ -249,7 +249,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
     private class OSGiProvider extends Provider {
         public static final String TYPE_CONFIGURATION = "Configuration";
 
-        protected OSGiProvider() {
+        OSGiProvider() {
             super(jaasConfigProviderName, 1.0, "OSGi based provider for Jaas configuration");
         }
 
