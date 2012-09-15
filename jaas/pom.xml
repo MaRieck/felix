@@ -110,14 +110,6 @@
             <version>2.3</version>
         </dependency>
 
-
-        <!-- Logging -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.5.2</version>
-        </dependency>
-
         <!-- testing -->
         <dependency>
             <groupId>junit</groupId>

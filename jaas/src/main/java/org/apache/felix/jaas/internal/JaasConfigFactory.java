@@ -29,8 +29,7 @@ import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedServiceFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.osgi.service.log.LogService;
 
 import java.util.Dictionary;
 import java.util.Enumeration;
@@ -73,7 +72,7 @@ public class JaasConfigFactory implements ManagedServiceFactory{
     @Property
     static final String JAAS_REALM_NAME = "jaas.realmName";
 
-    private Logger log = LoggerFactory.getLogger(getClass());
+    private final Logger log;
 
     private final LoginModuleCreator factory;
 
@@ -81,9 +80,10 @@ public class JaasConfigFactory implements ManagedServiceFactory{
 
     private final Map<String,ServiceRegistration> registrations = new ConcurrentHashMap<String, ServiceRegistration>();
 
-    public JaasConfigFactory(BundleContext context,LoginModuleCreator factory) {
+    public JaasConfigFactory(BundleContext context,LoginModuleCreator factory,Logger log) {
         this.context = context;
         this.factory = factory;
+        this.log = log;
 
         Properties props = new Properties();
         props.setProperty(Constants.SERVICE_VENDOR, "Apache Software Foundation");
@@ -108,7 +108,7 @@ public class JaasConfigFactory implements ManagedServiceFactory{
         String realmName = trimToNull(Util.toString(config.get(JAAS_REALM_NAME),null));
 
         if(className == null){
-            log.warn("Class name for the LoginModule is required. Configuration would be ignored"+config);
+            log.log(LogService.LOG_WARNING,"Class name for the LoginModule is required. Configuration would be ignored" + config);
             return;
         }
 

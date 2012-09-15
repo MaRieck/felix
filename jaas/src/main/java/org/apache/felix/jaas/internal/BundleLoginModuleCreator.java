@@ -22,9 +22,8 @@ package org.apache.felix.jaas.internal;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleEvent;
+import org.osgi.service.log.LogService;
 import org.osgi.util.tracker.BundleTracker;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.security.auth.spi.LoginModule;
 import java.util.HashMap;
@@ -37,13 +36,13 @@ class BundleLoginModuleCreator extends BundleTracker implements LoginModuleCreat
 
     private static final String JAAS_MODULE_CLASS = "Jaas-ModuleClass";
 
-    private static Logger log = LoggerFactory.getLogger(BundleLoginModuleCreator.class);
-
     private final Map<String,LoginModuleInfo> loginModuleInfo = new ConcurrentHashMap<String, LoginModuleInfo>();
 
+    private final Logger log;
 
-    public BundleLoginModuleCreator(BundleContext context) {
+    public BundleLoginModuleCreator(BundleContext context, Logger log) {
         super(context,Bundle.ACTIVE,null /* customizer */);
+        this.log = log;
     }
 
 
@@ -109,7 +108,7 @@ class BundleLoginModuleCreator extends BundleTracker implements LoginModuleCreat
     private Set<String> registerBundle(Bundle bundle){
         Set<String> classNames = Util.parseHeader((String) bundle.getHeaders().get(JAAS_MODULE_CLASS));
         for(String className : classNames){
-            LoginModuleInfo bi = new LoginModuleInfo(className,bundle);
+            LoginModuleInfo bi = new LoginModuleInfo(className,bundle,log);
             if(bi.isValid()){
 
                 //Duplicate registration check
@@ -117,14 +116,15 @@ class BundleLoginModuleCreator extends BundleTracker implements LoginModuleCreat
                     LoginModuleInfo existingInfo = loginModuleInfo.get(className);
                     String msg = String.format("LoginModule class %s is already registered with Bundle %s. Entry " +
                             "from bundle %s would be ignored",className,existingInfo.getBundle(),bundle);
-                    log.warn(msg);
+                    log.log(LogService.LOG_WARNING,msg);
                     continue;
                 }
 
                 loginModuleInfo.put(className,bi);
-                log.info("Registering LoginModule class [{}] from Bundle {}",className,bundle);
+                log.log(LogService.LOG_INFO,"Registering LoginModule class ["+className+"] from Bundle"+bundle);
             }else{
-                log.warn("Could not load LoginModule class {} from bundle {}",bi.getClassName(),bundle);
+                log.log(LogService.LOG_WARNING,"Could not load LoginModule class "+
+                        bi.getClassName()+" from bundle "+bundle);
             }
         }
         return classNames;
@@ -136,15 +136,16 @@ class BundleLoginModuleCreator extends BundleTracker implements LoginModuleCreat
         private final Class<LoginModule> clazz;
 
         @SuppressWarnings("unchecked")
-        public LoginModuleInfo(String className, Bundle bundle) {
+        public LoginModuleInfo(String className, Bundle bundle,Logger log) {
             this.className = className;
             this.bundle = bundle;
+
 
             Class<LoginModule> clazz = null;
             try {
                 clazz = bundle.loadClass(className);
             } catch (ClassNotFoundException e) {
-                log.warn("Error loading class ["+className+"] from bundle "+bundle,e);
+                log.log(LogService.LOG_WARNING,"Error loading class ["+className+"] from bundle "+bundle,e);
             }
             this.clazz = clazz;
         }

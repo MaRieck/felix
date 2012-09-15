@@ -28,14 +28,17 @@ public class Activator implements BundleActivator{
     private JaasConfigFactory jaasConfigFactory;
     private ConfigSpiOsgi configSpi;
     private JaasWebConsolePlugin webConsolePlugin;
+    private Logger logger;
 
     @Override
     public void start(BundleContext context) throws Exception {
-        loginModuleCreator = new BundleLoginModuleCreator(context);
-        jaasConfigFactory = new JaasConfigFactory(context,loginModuleCreator);
-        configSpi = new ConfigSpiOsgi(context);
+        logger = new Logger(context);
+        loginModuleCreator = new BundleLoginModuleCreator(context, logger);
+        jaasConfigFactory = new JaasConfigFactory(context,loginModuleCreator,logger);
+        configSpi = new ConfigSpiOsgi(context,logger);
         webConsolePlugin = new JaasWebConsolePlugin(context,configSpi,loginModuleCreator);
 
+        logger.open();
         loginModuleCreator.open();
         configSpi.open();
     }
@@ -48,6 +51,10 @@ public class Activator implements BundleActivator{
 
         if(configSpi != null){
             configSpi.close();
+        }
+
+        if(logger != null){
+            logger.close();
         }
     }
 }

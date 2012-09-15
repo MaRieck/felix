@@ -20,7 +20,7 @@
 package org.apache.felix.jaas.internal;
 
 import org.apache.felix.jaas.LoginModuleFactory;
-import org.apache.felix.jaas.ProxyLoginModule;
+import org.apache.felix.jaas.boot.ProxyLoginModule;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.ConfigurationPolicy;
 import org.apache.felix.scr.annotations.Property;
@@ -30,10 +30,9 @@ import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedService;
+import org.osgi.service.log.LogService;
 import org.osgi.util.tracker.ServiceTracker;
 import org.osgi.util.tracker.ServiceTrackerCustomizer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.ConfigurationSpi;
@@ -67,7 +66,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
     private Map<String,Realm> configs = Collections.emptyMap();
 
-    private Logger log = LoggerFactory.getLogger(getClass());
+    private final Logger log;
 
     @Property
     private static final String JAAS_DEFAULT_REALM_NAME = "jaas.defaultRealmName";
@@ -90,8 +89,9 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
     private ServiceRegistration spiReg;
 
-    public ConfigSpiOsgi(BundleContext context) {
+    public ConfigSpiOsgi(BundleContext context,Logger log) {
         this.context = context;
+        this.log = log;
         this.tracker = new ServiceTracker(context,LoginModuleFactory.class.getName(),this);
 
         Properties props = new Properties();
@@ -105,7 +105,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
     protected AppConfigurationEntry[] engineGetAppConfigurationEntry(String name) {
         Realm realm = configs.get(name);
         if(realm == null){
-            log.warn("No JAAS module configured for realm {}",name);
+            log.log(LogService.LOG_WARNING,"No JAAS module configured for realm "+name);
             return null;
         }
 
@@ -197,14 +197,14 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
     private void registerProvider(){
         Security.addProvider(new OSGiProvider());
-        log.info("Registered provider {} for managing JAAS config with type {}",
-                jaasConfigProviderName,JAAS_CONFIG_ALGO_NAME);
+        log.log(LogService.LOG_INFO, "Registered provider " + jaasConfigProviderName
+                + " for managing JAAS config with type " + JAAS_CONFIG_ALGO_NAME);
     }
 
     private void deregisterProvider(){
         Security.removeProvider(jaasConfigProviderName);
-        log.info("Removed provider {} type {} from Security providers list",
-                jaasConfigProviderName,JAAS_CONFIG_ALGO_NAME);
+        log.log(LogService.LOG_INFO, "Removed provider " + jaasConfigProviderName + " type "
+                + JAAS_CONFIG_ALGO_NAME + " from Security providers list");
     }
 
     // ---------- ServiceTracker ----------------------------------------------
@@ -231,7 +231,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
     private void deregisterFactory(ServiceReference ref) {
         LoginModuleProvider lmp = providerMap.remove(ref);
         if(lmp != null){
-            log.info("Deregistering LoginModuleFactory {}",lmp);
+            log.log(LogService.LOG_INFO, "Deregistering LoginModuleFactory " + lmp);
         }
     }
 
@@ -242,7 +242,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
         }else{
             lmfExt = new OsgiLoginModuleProvider(ref,lmf);
         }
-        log.info("Registering LoginModuleFactory {}",lmf);
+        log.log(LogService.LOG_INFO, "Registering LoginModuleFactory " + lmf);
         providerMap.put(ref, lmfExt);
     }
 
