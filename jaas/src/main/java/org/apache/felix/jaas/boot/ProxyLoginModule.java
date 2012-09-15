@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.felix.jaas;
+package org.apache.felix.jaas.boot;
 
 import javax.security.auth.Subject;
 import javax.security.auth.callback.CallbackHandler;
@@ -27,13 +27,13 @@ import java.util.Map;
 
 
 public class ProxyLoginModule implements LoginModule {
-    public static final String PROP_LOGIN_MODULE_FACTORY = "org.apache.sling.auth.jaas.LoginModuleFactory";
+    public static final String PROP_LOGIN_MODULE_FACTORY = "org.apache.felix.jaas.LoginModuleFactory";
 
     private LoginModule delegate;
 
     public void initialize(Subject subject, CallbackHandler callbackHandler,
                            Map<String, ?> sharedState, Map<String, ?> options) {
-        LoginModuleFactory factory = (LoginModuleFactory) options.get(PROP_LOGIN_MODULE_FACTORY);
+        BootLoginModuleFactory factory = (BootLoginModuleFactory) options.get(PROP_LOGIN_MODULE_FACTORY);
         if(factory == null){
             throw new IllegalStateException("Specify LoginModuleFactory through ["+
                     PROP_LOGIN_MODULE_FACTORY+"] property as part of configuration options");
@@ -56,5 +56,13 @@ public class ProxyLoginModule implements LoginModule {
 
     public boolean logout() throws LoginException {
         return delegate.logout();
+    }
+
+    /**
+     * Factory interface to create LoginModule instance. This is exactly same as
+     * LoginModuleFactory. This is done to keep the boot package self sufficient
+     */
+    public static interface BootLoginModuleFactory {
+        LoginModule createLoginModule();
     }
 }

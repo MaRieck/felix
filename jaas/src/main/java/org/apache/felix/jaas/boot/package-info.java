@@ -17,24 +17,14 @@
  * under the License.
  */
 
-package org.apache.felix.jaas.internal;
+/**
+ * Provides support for performing JAAS based authentication in OSGi
+ *
+ * @version 1.0
+ */
+@Version("1.0")
+@Export(optional = "provide:=true")
+package org.apache.felix.jaas.boot;
 
-import org.apache.felix.jaas.LoginModuleFactory;
-import org.apache.felix.jaas.boot.ProxyLoginModule;
-
-import java.util.Map;
-
-import static javax.security.auth.login.AppConfigurationEntry.LoginModuleControlFlag;
-
-public interface LoginModuleProvider extends LoginModuleFactory, ProxyLoginModule.BootLoginModuleFactory {
-
-    Map<String,?> options();
-
-    LoginModuleControlFlag getControlFlag();
-
-    int ranking();
-
-    String realmName();
-
-    String getClassName();
-}
+import aQute.bnd.annotation.Export;
+import aQute.bnd.annotation.Version;
