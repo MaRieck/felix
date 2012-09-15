@@ -24,6 +24,7 @@ import org.apache.felix.jaas.boot.ProxyLoginModule;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.ConfigurationPolicy;
 import org.apache.felix.scr.annotations.Property;
+import org.apache.felix.scr.annotations.PropertyOption;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;
@@ -35,6 +36,7 @@ import org.osgi.util.tracker.ServiceTracker;
 import org.osgi.util.tracker.ServiceTrackerCustomizer;
 
 import javax.security.auth.login.AppConfigurationEntry;
+import javax.security.auth.login.Configuration;
 import javax.security.auth.login.ConfigurationSpi;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
@@ -64,6 +66,12 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
     public static final String SERVICE_PID = "org.apache.felix.jaas.ConfigurationSpi";
 
+    private static enum GlobalConfigurationPolicy{
+        DEFAULT,
+        REPLACE,
+        PROXY
+    }
+
     private Map<String,Realm> configs = Collections.emptyMap();
 
     private final Logger log;
@@ -76,10 +84,25 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
     @Property(value = DEFAULT_CONFIG_PROVIDER_NAME)
     private static final String JAAS_CONFIG_PROVIDER_NAME = "jaas.configProviderName";
 
+    @Property(value = "default",options = {
+            @PropertyOption(name = "default",value = "%jaas.configPolicy.default"),
+            @PropertyOption(name = "replace",value = "%jaas.configPolicy.replace"),
+            @PropertyOption(name = "proxy",value = "%jaas.configPolicy.proxy")
+    })
+    static final String JAAS_CONFIG_POLICY = "jaas.globalConfigPolicy";
+
+    private final Configuration osgiConfig = new OsgiConfiguration();
+
+    private final Configuration originalConfig;
+
+    private final Configuration proxyConfig;
+
+    private volatile GlobalConfigurationPolicy globalConfigPolicy = GlobalConfigurationPolicy.DEFAULT;
+
     private final Map<ServiceReference,LoginModuleProvider> providerMap =
             new ConcurrentHashMap<ServiceReference, LoginModuleProvider>();
 
-    private String jaasConfigProviderName;
+    private volatile String jaasConfigProviderName;
 
     private final Object lock = new Object();
 
@@ -88,6 +111,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
     private final ServiceTracker tracker;
 
     private ServiceRegistration spiReg;
+
 
     public ConfigSpiOsgi(BundleContext context,Logger log) {
         this.context = context;
@@ -99,6 +123,9 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
         props.setProperty(Constants.SERVICE_PID, SERVICE_PID);
 
         this.context.registerService(ManagedService.class.getName(),this,props);
+
+        this.originalConfig = getGlobalConfiguration();
+        this.proxyConfig = new DelegatingConfiguration(osgiConfig, originalConfig);
     }
 
     @Override
@@ -169,6 +196,10 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
             providerMap.clear();
             configs.clear();
         }
+
+        if(globalConfigPolicy != GlobalConfigurationPolicy.DEFAULT){
+            restoreOriginalConfiguration();
+        }
     }
 
     // --------------Config handling ----------------------------------------
@@ -190,6 +221,38 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
         deregisterProvider();
         registerProvider();
+        manageGlobalConfiguration(properties);
+    }
+
+    private void manageGlobalConfiguration(Dictionary props) {
+        String configPolicy = Util.toString(props.get(JAAS_CONFIG_POLICY), GlobalConfigurationPolicy.DEFAULT.name());
+        configPolicy = Util.trimToNull(configPolicy);
+
+        GlobalConfigurationPolicy policy = GlobalConfigurationPolicy.DEFAULT;
+        if(configPolicy != null){
+            policy = GlobalConfigurationPolicy.valueOf(configPolicy.toUpperCase());
+        }
+
+        this.globalConfigPolicy = policy;
+
+        if(policy == GlobalConfigurationPolicy.REPLACE){
+            Configuration.setConfiguration(osgiConfig);
+            log.log(LogService.LOG_INFO,"Replacing the global JAAS configuration with OSGi based configuration");
+        }else if(policy == GlobalConfigurationPolicy.PROXY){
+            Configuration.setConfiguration(proxyConfig);
+            log.log(LogService.LOG_INFO,"Replacing the global JAAS configuration with OSGi based proxy configuration. " +
+                    "It would look first in the OSGi based configuration and if not found would use the default global " +
+                    "configuration");
+        }else if(policy == GlobalConfigurationPolicy.DEFAULT){
+            restoreOriginalConfiguration();
+        }
+    }
+
+    private void restoreOriginalConfiguration(){
+        Configuration current = Configuration.getConfiguration();
+        if(current != originalConfig){
+            Configuration.setConfiguration(originalConfig);
+        }
     }
 
 
@@ -246,6 +309,15 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
         providerMap.put(ref, lmfExt);
     }
 
+    private static Configuration getGlobalConfiguration(){
+        try{
+            return Configuration.getConfiguration();
+        }catch(Exception e){
+            // means no JAAS configuration file OR no permission to read it
+        }
+        return null;
+    }
+
     private class OSGiProvider extends Provider {
         public static final String TYPE_CONFIGURATION = "Configuration";
 
@@ -281,6 +353,49 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
             return ConfigSpiOsgi.this;
         }
     }
+
+    //---------------------------- Global Configuration Handling
+
+    private class OsgiConfiguration extends Configuration {
+
+        @Override
+        public AppConfigurationEntry[] getAppConfigurationEntry(String name) {
+            return ConfigSpiOsgi.this.engineGetAppConfigurationEntry(name);
+        }
+    }
+
+    private class DelegatingConfiguration extends Configuration {
+        private final Configuration primary;
+        private final Configuration secondary;
+
+        private DelegatingConfiguration(Configuration primary, Configuration secondary) {
+            this.primary = primary;
+            this.secondary = secondary;
+        }
+
+        @Override
+        public AppConfigurationEntry[] getAppConfigurationEntry(String name) {
+            // check if jaas-loginModule or fallback is configured
+            AppConfigurationEntry[] result = null;
+            try {
+                result = primary.getAppConfigurationEntry(name);
+            } catch (Exception e) {
+                // means no JAAS configuration file OR no permission to read it
+            }
+
+            if(result == null){
+                try {
+                    result = secondary.getAppConfigurationEntry(name);
+                } catch (Exception e) {
+                    // WLP 9.2.0 throws IllegalArgumentException for unknown appName
+                }
+            }
+
+            return result;
+        }
+    }
+
+    //-------------------------------------OSGi Config Management
 
     static final class Realm {
         private final String realmName;
