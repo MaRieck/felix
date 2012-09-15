@@ -38,12 +38,28 @@
         <developerConnection>scm:svn:https://svn.apache.org/repos/asf/felix/trunk/jaas</developerConnection>
         <url>http://svn.apache.org/repos/asf/felix/jaas</url>
     </scm>
+
+    <properties>
+    </properties>
     
     <build>
         <plugins>
+            <!--
+                We do not use DS but the SCR plugin is used to generate the
+                metatype.xml from the SCR annotations
+            -->
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-scr-plugin</artifactId>
+                <version>1.7.4</version>
+                <executions>
+                    <execution>
+                        <id>generate-scr-scrdescriptor</id>
+                        <goals>
+                            <goal>scr</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -71,14 +87,32 @@
                         <Bundle-Activator>
                             org.apache.felix.jaas.internal.Activator
                         </Bundle-Activator>
-                        <Export-Package>
-                            org.apache.felix.jaas
-                        </Export-Package>
                         <_removeheaders>
                             Embed-Dependency,Private-Package,Include-Resource
                         </_removeheaders>
                     </instructions>
                 </configuration>
+            </plugin>
+            <!-- Create jar which can be put in boot classpath to enable use of
+            ProxyLoginModule in normal JAAS mode of authentication -->
+            <plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                <execution>
+                    <id>boot-library</id>
+                    <goals><goal>jar</goal></goals>
+                    <phase>package</phase>
+                    <configuration>
+                        <classifier>boot</classifier>
+                        <includes>
+                            <include>org/apache/felix/jaas/boot/*.class</include>
+                            <include>META-INF/NOTICE</include>
+                            <include>META-INF/DEPENDENCIES</include>
+                            <include>META-INF/LICENSE</include>
+                        </includes>
+                    </configuration>
+                </execution>
+            </executions>
             </plugin>
         </plugins>
     </build>
