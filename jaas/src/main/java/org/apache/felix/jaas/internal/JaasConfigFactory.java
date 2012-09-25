@@ -45,7 +45,8 @@ import static org.apache.felix.jaas.internal.Util.trimToNull;
         description = "%jaas.description",
         metatype = true,
         ds=false,
-        name = JaasConfigFactory.SERVICE_PID
+        name = JaasConfigFactory.SERVICE_PID,
+        configurationFactory=true
 )
 public class JaasConfigFactory implements ManagedServiceFactory{
 
