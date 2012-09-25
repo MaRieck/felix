@@ -186,6 +186,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
     void open(){
         this.tracker.open();
+        this.configs = Collections.emptyMap();
     }
 
     void close() {
@@ -194,7 +195,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
         synchronized (lock) {
             providerMap.clear();
-            configs.clear();
+            configs = null; //Cannot call clear as its an unmodifiable map
         }
 
         if(globalConfigPolicy != GlobalConfigurationPolicy.DEFAULT){
@@ -206,6 +207,10 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
 
     @Override
     public void updated(Dictionary properties) throws ConfigurationException {
+        //TODO Do not know but for fresh install it is null
+        if(properties == null){
+            return;
+        }
         String newDefaultRealmName = Util.toString(properties.get(JAAS_DEFAULT_REALM_NAME),null);
         if(newDefaultRealmName == null){
             throw new IllegalArgumentException("Default JAAS realm name must be specified");
@@ -249,6 +254,10 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
     }
 
     private void restoreOriginalConfiguration(){
+        if(originalConfig == null){
+            return;
+        }
+
         Configuration current = Configuration.getConfiguration();
         if(current != originalConfig){
             Configuration.setConfiguration(originalConfig);
@@ -276,6 +285,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi implements ManagedService, S
     public Object addingService(ServiceReference reference) {
         LoginModuleFactory lmf = (LoginModuleFactory) context.getService(reference);
         registerFactory(reference,lmf);
+        recreateConfigs();
         return lmf;
     }
 
