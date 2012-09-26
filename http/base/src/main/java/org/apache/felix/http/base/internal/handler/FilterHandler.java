@@ -31,12 +31,14 @@ public final class FilterHandler
     private final Filter filter;
     private final Pattern regex;
     private final int ranking;
+    private final String pattern;
 
     public FilterHandler(ExtServletContext context, Filter filter, String pattern, int ranking)
     {
         super(context);
         this.filter = filter;
         this.ranking = ranking;
+        this.pattern = pattern;
 	    this.regex = Pattern.compile(pattern);
     }
 
@@ -92,5 +94,15 @@ public final class FilterHandler
     public int compareTo(FilterHandler other)
     {
         return other.ranking - this.ranking;
+    }
+
+    public int getRanking()
+    {
+        return ranking;
+    }
+
+    public String getPattern()
+    {
+        return pattern;
     }
 }
