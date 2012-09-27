@@ -82,7 +82,7 @@ public class HttpServicePlugin extends HttpServlet {
     private void printFilterDetails(PrintWriter pw) {
         pw.println("<p class=\"statline ui-state-highlight\">${Registered Filter Services}</p>");
 
-        pw.println("<table class=\"nicetable\">");
+        pw.println("<table class=\"tablesorter nicetable\">");
         pw.println("<thead><tr>");
         pw.println("<th class=\"header\">${Pattern}</th>");
         pw.println("<th class=\"header\">${Filter(Ranking)}</th>");
@@ -112,7 +112,7 @@ public class HttpServicePlugin extends HttpServlet {
     private void printServletDetails(PrintWriter pw) {
         pw.println("<p class=\"statline ui-state-highlight\">${Registered Servlet Services}</p>");
 
-        pw.println("<table class=\"nicetable\">");
+        pw.println("<table class=\"tablesorter nicetable\">");
         pw.println("<thead><tr>");
         pw.println("<th class=\"header\">${Alias}</th>");
         pw.println("<th class=\"header\">${Servlet}</th>");
