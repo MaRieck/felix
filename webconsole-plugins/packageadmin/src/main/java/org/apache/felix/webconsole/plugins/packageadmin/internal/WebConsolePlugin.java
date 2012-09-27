@@ -149,7 +149,7 @@ class WebConsolePlugin extends SimpleWebConsolePlugin
         return exports;
     }
 
-    private static final JSONObject doFindDependencies(HttpServletRequest req,
+    private final JSONObject doFindDependencies(HttpServletRequest req,
         PackageAdmin pa) throws JSONException
     {
         final JSONObject json = new JSONObject();
@@ -227,17 +227,42 @@ class WebConsolePlugin extends SimpleWebConsolePlugin
         return toJSON(pkg.getExportingBundle(), ret);
     }
 
-    private static final JSONObject getPackageInfo(String packageName, PackageAdmin pa,
+    private final JSONObject getPackageInfo(String packageName, PackageAdmin pa,
         Set/*<Bundle>*/exportingBundles) throws JSONException
     {
         final JSONObject ret = new JSONObject();
         final ExportedPackage[] exports = pa.getExportedPackages(packageName);
+        final Set/*<Bundle>*/currentPackageBundles = new LinkedHashSet/*<Bundle>*/();
         for (int i = 0; exports != null && i < exports.length; i++)
         {
             final ExportedPackage x = exports[i];
             ret.append("exporters", toJSON(x)); //$NON-NLS-1$
             exportingBundles.add(x.getExportingBundle());
+            currentPackageBundles.add(x.getExportingBundle());
         }
+
+        //Find bundle which embed this package and not export it
+        final Bundle[] bundles = getBundleContext().getBundles();
+        final String pkgNameAsPath = packageName.replace('.','/');
+        for(int i = 0; i < bundles.length;i++)
+        {
+            final Bundle b = bundles[i];
+            final URL u = b.getEntry(pkgNameAsPath);
+            if(u != null)
+            {
+                if(currentPackageBundles.contains(b))
+                {
+                    //Information about this bundle is already captured in
+                    //Exported package list
+                    continue;
+                }
+                final JSONObject pkgInfo = new JSONObject();
+                pkgInfo.put("version", "N/A");
+                ret.append("exporters",toJSON(b, pkgInfo)); //$NON-NLS-1$
+                exportingBundles.add(b);
+            }
+        }
+
         return ret.put("name", packageName); //$NON-NLS-1$
     }
 
